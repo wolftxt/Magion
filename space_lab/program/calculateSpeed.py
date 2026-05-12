@@ -4,6 +4,12 @@ import cv2
 
 import camera_distortion
 
+"""
+Variables storing the state of the stability mask.
+Stability mask is the area, where ORB is not allowed to put keypoints,
+because that area isn't moving.
+"""
+
 frame_stack = None
 edge_stack = None
 size = 21
@@ -76,6 +82,10 @@ def delete_small_dots(mask, min_area=1000):
 
 
 def shift_mask(mask, shift_x, shift_y):
+    """
+    Shifts the image mask so that areas that ORB cannot select keypoints
+    on areas that arent visible in the other image.
+    """
     rows, cols = mask.shape[:2]
     M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
     shifted_mask = cv2.warpAffine(mask, M, (cols, rows))
@@ -171,6 +181,9 @@ def find_matching_coordinates(keypoints_1, keypoints_2, matches):
 
 
 def calculate_mean_distance(coordinates_1, coordinates_2, h, latitude, GSD):
+    """
+    Calculates the actual distance on Earth, instead of a flat euclidian distance.
+    """
     if not coordinates_1:
         return 0
 
@@ -196,7 +209,6 @@ def calculate_mean_distance(coordinates_1, coordinates_2, h, latitude, GSD):
 
         angle = math.fabs(angle_2 - angle_1)
         distance_angles[i] = math.acos(math.cos(theta) * math.cos(theta_2) + math.sin(theta) * math.sin(theta_2) * math.cos(angle))
-
     return np.mean(distance_angles)
 
 def get_earth_radius(latitude):
@@ -211,6 +223,9 @@ def get_earth_radius(latitude):
 
 
 def calculate_speed_in_kmps(distance_angle, time_difference, iss_altitude, latitude):
+    """
+    Corrects for the rotation of the earth and calculates speed in km/s.
+    """
     inclination = math.radians(51.64)
     earth_radius = get_earth_radius(latitude)
 
@@ -222,6 +237,7 @@ def calculate_speed_in_kmps(distance_angle, time_difference, iss_altitude, latit
     angle = math.pi / 2 + math.asin(azimuth)
 
     d_g = distance_angle
+    # Corrects for Earth's rotation (spherical law of cosines)
     d_g_and_r = math.acos(math.cos(d_g) * math.cos(d_r) + math.sin(d_g) * math.sin(d_r) * math.cos(angle))
 
     orbit_distance = d_g_and_r * (earth_radius + iss_altitude)
@@ -255,9 +271,6 @@ def calculate(image_1, image_2, time_difference, iss_altitude, latitude):
     GSD = iss_altitude / camera_distortion.get_effective_f_px()
     average_arc_angle = calculate_mean_distance(coordinates_1, coordinates_2, iss_altitude, latitude, GSD)
     speed = calculate_speed_in_kmps(average_arc_angle, time_difference, iss_altitude, latitude)
-
-    print(f"speed: {speed:.5g} km/s, inliers: {inliers_count}")
-
     """h1, w1 = image_1.shape
     h2, w2 = image_2.shape
     output_visual = np.zeros((max(h1, h2), w1 + w2), dtype=np.uint8)

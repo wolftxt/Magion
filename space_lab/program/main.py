@@ -15,16 +15,23 @@ IMAGE_COUNT = 42
 MAX_TIME_ELAPSED = 570  # 9.5 minutes
 
 def capture_images():
+    """
+    Captures half the total images before calculating anything to calculate the stability mask.
+    Then in the second half calculates the speeds from all images
+    """
     cam = Camera()
     results = []
     images = []
     timestamps = []
+    altitudes = []
+    latitudes = []
 
     def process_image_pair(img1, img2, i):
         time_diff = timestamps[i] - timestamps[i - 1]
         try:
-            iss_altitude = ISS().coordinates().elevation.m
-            iss_latitude = ISS().coordinates().latitude.degrees
+            # Uses altitude and latitude of img1 by convention
+            iss_altitude = altitudes[i - 1]
+            iss_latitude = latitudes[i - 1]
             speed, inliers = calculateSpeed.calculate(img1, img2, time_diff, iss_altitude, math.radians(iss_latitude))
 
             results.append({
@@ -38,6 +45,7 @@ def capture_images():
     shape = camera_distortion.get_dimensions()
     calculateSpeed.initiate_stability_mask(half_of_image_count, shape[1], shape[0])
 
+    # Capture images, but does not calculate anything
     for i in range(half_of_image_count):
         if time.perf_counter() - start_time > MAX_TIME_ELAPSED:
             print("Time limit reached. Breaking loop.")
@@ -50,6 +58,8 @@ def capture_images():
 
         images.append(camera_distortion.undistort_image(image_path))
         timestamps.append(capture_start)
+        altitudes.append(ISS().coordinates().elevation.m)
+        latitudes.append(ISS().coordinates().latitude.degrees)
 
         calculateSpeed.add_to_mask(images[i], True)
 
@@ -62,6 +72,7 @@ def capture_images():
         np.savetxt("timestamps.csv", timestamps, delimiter=",", header="timestamps", comments='')
         time.sleep(sleep_time)
 
+    # Captures images and calculates previously taken images
     for i in range(half_of_image_count, IMAGE_COUNT, 1):
         if time.perf_counter() - start_time > MAX_TIME_ELAPSED:
             print("Time limit reached. Breaking loop.")
@@ -80,6 +91,8 @@ def capture_images():
 
         images.append(camera_distortion.undistort_image(image_path))
         timestamps.append(capture_start)
+        altitudes.append(ISS().coordinates().elevation.m)
+        latitudes.append(ISS().coordinates().latitude.degrees)
 
         if time.perf_counter() - start_time > MAX_TIME_ELAPSED:
             print("Time limit reached. Breaking loop.")
@@ -103,6 +116,7 @@ def capture_images():
         return 0
 
     results.sort(key=lambda x: x["confidence"], reverse=True)
+    # Takes the median of 25 % of images with the most inliers according to RANSAC
     top_n = max(1, len(results) // 4)
     best_results = results[:top_n]
 

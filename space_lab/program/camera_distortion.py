@@ -10,6 +10,7 @@ K = np.array([[f_px, 0, w_px / 2],
                   [0, f_px, h_px / 2],
                   [0, 0, 1]], dtype=np.float64)
 
+# Matrix calculated with 20 photos of an A3 checkerboard paper
 D = np.array([[-0.50159923, 0.31835896, 0.002986, 0.00156591, -0.13630313]], dtype=np.float64)
 
 new_camera_mtx, roi = cv2.getOptimalNewCameraMatrix(K, D, (w_px, h_px), 0, (w_px, h_px))
