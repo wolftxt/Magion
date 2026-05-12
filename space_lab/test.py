@@ -123,7 +123,7 @@ def main():
             time_difference = get_time_difference(image_1, image_2)
             if time_difference < 12 or time_difference > 30:
                 return
-            iss_latitude, iss_altitude = get_historical_iss_position(get_time(image_1))
+            iss_latitude, iss_altitude = get_historical_iss_position(get_time(image_2))
             if iss_latitude is not None:
                 img_1 = camera_distortion.undistort_image(image_1)
                 img_2 = camera_distortion.undistort_image(image_2)
