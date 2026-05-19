@@ -193,23 +193,35 @@ def calculate_mean_distance(coordinates_1, coordinates_2, h, latitude, GSD):
     nadir = camera_distortion.get_nadir()
     r = get_earth_radius(latitude)
     for i in range(count):
+        px_mv = [coordinates_2[i][0] - coordinates_1[i][0], coordinates_2[i][1] - coordinates_1[i][1]]
         dx = nadir[0] - coordinates_1[i][0]
         dy = nadir[1] - coordinates_1[i][1]
-        angle_1 = math.atan2(dy, dx)
         pixel_distance_1 = math.hypot(dx, dy)
         alpha = math.atan2(pixel_distance_1 * GSD, h)
+        #a
         theta = math.asin(math.sin(alpha) * (r + h) / r) - alpha
+        #A
+        th_2 = math.acos((px_mv[0] * dx + px_mv[1] * dy) / (math.hypot(px_mv[0], px_mv[1]) * math.hypot(dx, dy)))
 
+        px_mv = [-px_mv[0], -px_mv[1]]
         dx_2 = nadir[0] - coordinates_2[i][0]
         dy_2 = nadir[1] - coordinates_2[i][1]
-        angle_2 = math.atan2(dy_2, dx_2)
         pixel_distance_2 = math.hypot(dx_2, dy_2)
         alpha_2 = math.atan2(pixel_distance_2 * GSD, h)
+        #b
         theta_2 = math.asin(math.sin(alpha_2) * (r + h) / r) - alpha_2
+        #B
+        th_1 = math.acos((px_mv[0] * dx_2 + px_mv[1] * dy_2) / (math.hypot(px_mv[0], px_mv[1]) * math.hypot(dx_2, dy_2)))
 
-        angle = math.fabs(angle_2 - angle_1)
-        distance_angles[i] = math.acos(math.cos(theta) * math.cos(theta_2) + math.sin(theta) * math.sin(theta_2) * math.cos(angle))
+        distance_angles[i] = napier(theta, theta_2, th_2, th_1)
     return np.mean(distance_angles)
+
+def napier(a, b, A, B):
+    cos_A_p_B = math.cos((A + B) / 2)
+    cos_A_m_B = math.cos((A - B) / 2)
+    tan_a_p_b = math.tan((a + b) / 2)
+    c = 2 * math.atan(tan_a_p_b * cos_A_p_B / cos_A_m_B)
+    return c
 
 def get_earth_radius(latitude):
     a = 6378137  # earth_equator_radius
@@ -221,7 +233,6 @@ def get_earth_radius(latitude):
     denominator = a_cos ** 2 + b_sin ** 2
     return math.sqrt(numerator / denominator)
 
-
 def calculate_speed_in_kmps(distance_angle, time_difference, iss_altitude, latitude):
     """
     Corrects for the rotation of the earth and calculates speed in km/s.
@@ -231,14 +242,14 @@ def calculate_speed_in_kmps(distance_angle, time_difference, iss_altitude, latit
 
     seconds_in_a_day = 86164.09
     earth_rotation_degrees = 2 * math.pi / seconds_in_a_day * math.cos(latitude)
-    d_r = earth_rotation_degrees * time_difference
+    b = d_r = earth_rotation_degrees * time_difference
     # Ternary to avoid math domain error
     azimuth = 1 if math.cos(inclination) / math.cos(latitude) > 1 else math.cos(inclination) / math.cos(latitude)
-    angle = math.pi / 2 + math.asin(azimuth)
+    A = math.pi / 2 - math.asin(azimuth)
 
-    d_g = distance_angle
-    # Corrects for Earth's rotation (spherical law of cosines)
-    d_g_and_r = math.acos(math.cos(d_g) * math.cos(d_r) + math.sin(d_g) * math.sin(d_r) * math.cos(angle))
+    a = d_g = distance_angle
+    B = math.asin(math.sin(A) * math.sin(b) / math.sin(a))
+    d_g_and_r = napier(a, b, A, B)
 
     orbit_distance = d_g_and_r * (earth_radius + iss_altitude)
     speed_in_mps = orbit_distance / time_difference
